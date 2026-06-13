@@ -4,5 +4,8 @@
   "main": "index.html",
   "scripts": {
     "build": "echo 'Deploying static files'"
+  },
+  "vercel": {
+    "outputDirectory": "."
   }
 }

@@ -6,7 +6,7 @@ export default async function handler(req, res) {
 
   // 2. Extract the endpoint path (e.g., /v2/build)
   const endpoint = req.query.endpoint || "/v2/build";
-  const gw2Url = `https://guildwars2.com${endpoint}`;
+  const gw2Url = `https://api.guildwars2.com${endpoint}`;
 
   try {
     // 3. Fetch from ArenaNet using Vercel's AWS infrastructure

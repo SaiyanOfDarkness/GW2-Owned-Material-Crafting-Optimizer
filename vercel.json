@@ -1,8 +1,9 @@
 {
-  "framework": null,
-  "functions": {
-    "api/gw2.js": {
-      "runtime": "nodejs20.x"
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/gw2",
+      "destination": "/api/gw2.js"
     }
-  }
+  ]
 }

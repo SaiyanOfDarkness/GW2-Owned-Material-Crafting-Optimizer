@@ -1,0 +1,8 @@
+{
+  "name": "gw2-proxy-site",
+  "version": "1.0.0",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'Deploying static files'"
+  }
+}

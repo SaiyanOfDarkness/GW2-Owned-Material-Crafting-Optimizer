@@ -19,11 +19,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing access_token" });
   }
 
-  const endpoints = {
-    materials: "/v2/account/materials",
-    bank: "/v2/account/bank",
-    wallet: "/v2/account/wallet"
-  };
+const endpoints = {
+  materials: "/v2/account/materials",
+  bank: "/v2/account/bank",
+  wallet: "/v2/account/wallet",
+  characters: "/v2/characters?ids=all"
+};
 
   async function fetchGw2(endpoint) {
     const url = new URL(`https://api.guildwars2.com${endpoint}`);
@@ -45,18 +46,20 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [materials, bank, wallet] = await Promise.all([
-      fetchGw2(endpoints.materials),
-      fetchGw2(endpoints.bank),
-      fetchGw2(endpoints.wallet)
-    ]);
+const [materials, bank, wallet, characters] = await Promise.all([
+  fetchGw2(endpoints.materials),
+  fetchGw2(endpoints.bank),
+  fetchGw2(endpoints.wallet),
+  fetchGw2(endpoints.characters)
+]);
 
 return res.status(200).json({
   fetched_at: new Date().toISOString(),
   cache_seconds: 0,
   materials: materials.filter(item => item && item.count > 0),
   bank: bank.filter(Boolean),
-  wallet
+  wallet,
+  characters
 });
   } catch (error) {
     return res.status(500).json({

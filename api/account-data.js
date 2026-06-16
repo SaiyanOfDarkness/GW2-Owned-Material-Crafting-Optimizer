@@ -51,13 +51,13 @@ export default async function handler(req, res) {
       fetchGw2(endpoints.wallet)
     ]);
 
-    return res.status(200).json({
-      fetched_at: new Date().toISOString(),
-      cache_seconds: 0,
-      materials,
-      bank,
-      wallet
-    });
+return res.status(200).json({
+  fetched_at: new Date().toISOString(),
+  cache_seconds: 0,
+  materials: materials.filter(item => item && item.count > 0),
+  bank: bank.filter(Boolean),
+  wallet
+});
   } catch (error) {
     return res.status(500).json({
       error: "Account data fetch failed",

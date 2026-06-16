@@ -1,3 +1,8 @@
+let cachedData = null;
+let cacheTime = 0;
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -18,7 +23,16 @@ export default async function handler(req, res) {
   if (!accessToken) {
     return res.status(400).json({ error: "Missing access_token" });
   }
+const now = Date.now();
 
+if (cachedData && (now - cacheTime) < CACHE_DURATION) {
+  return res.status(200).json({
+    ...cachedData,
+    cache_seconds: Math.floor((now - cacheTime) / 1000),
+    cached: true
+  });
+}
+  
 const endpoints = {
   materials: "/v2/account/materials",
   bank: "/v2/account/bank",
@@ -53,14 +67,20 @@ const [materials, bank, wallet, characters] = await Promise.all([
   fetchGw2(endpoints.characters)
 ]);
 
-return res.status(200).json({
+const result = {
   fetched_at: new Date().toISOString(),
   cache_seconds: 0,
+  cached: false,
   materials: materials.filter(item => item && item.count > 0),
   bank: bank.filter(Boolean),
   wallet,
   characters
-});
+};
+
+cachedData = result;
+cacheTime = Date.now();
+
+return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({
       error: "Account data fetch failed",

@@ -1922,7 +1922,12 @@ function partialDebugLog(message) {
   log(String(message || ''));
 }
 
+const VERCEL_GW2_API = 'https://gw-2-owned-material-crafting-optimi.vercel.app/api/gw2';
 
+function gw2ApiUrl(path) {
+  return `${VERCEL_GW2_API}?endpoint=/v2${path}`;
+}
+  
 const API = 'https://my-cors-proxy.saiyan-of-darkness.workers.dev/gw2/v2';
 const DB_NAME = 'gw2OwnedMaterialCraftingOptimizerDB';
 const DB_VERSION = 1;
@@ -3536,17 +3541,10 @@ async function idbDelete(key) {
   });
 }
 
-function withWorkerSecret(url) {
-  const u = new URL(url);
-  u.searchParams.set("secret", "TopOnePercentOfTheTopOnePercent");
-  return u.toString();
-}
 async function fetchJson(url, retries = 3, timeoutMs = 25000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     
-    const finalUrl = url.startsWith("https://my-cors-proxy.saiyan-of-darkness.workers.dev/")
-    ? withWorkerSecret(url)
-    : url;
+    const finalUrl = url;
     
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -3563,7 +3561,7 @@ const res = await fetch(finalUrl, { signal: controller.signal, cache: 'no-store'
     } catch (err) {
       clearTimeout(timer);
       if (attempt >= retries) throw err;
-      log(`Waiting on API / retry ${attempt}/${retries}: ${finalUrl.slice(0, 120)}`);
+      log(`Waiting on API / retry ${attempt}/${retries}: ${err.message} | ${finalUrl.slice(0, 120)}`);
       await sleep(800 * attempt);
     }
   }
@@ -4472,7 +4470,7 @@ async function loadOwnedMaterials() {
 
   const ACCOUNT_DATA_API = 'https://gw-2-owned-material-crafting-optimi.vercel.app/api/account-data';
 
-  await promisePool(active, ACCOUNT_CONCURRENCY, async (acc, accountIndex) => {
+  await promisePool(active, 2, async (acc, accountIndex) => {
     const label = acc.label || `Account ${accountIndex + 1}`;
     const token = String(acc.key || '').trim();
 

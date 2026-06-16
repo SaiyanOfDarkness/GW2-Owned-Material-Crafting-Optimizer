@@ -1922,13 +1922,12 @@ function partialDebugLog(message) {
   log(String(message || ''));
 }
 
-const VERCEL_GW2_API = 'https://gw-2-owned-material-crafting-optimi.vercel.app/api/gw2';
+const API = 'https://my-cors-proxy.saiyan-of-darkness.workers.dev/gw2/v2';
+  const VERCEL_GW2_API = 'https://gw-2-owned-material-crafting-optimi.vercel.app/api/gw2';
 
 function gw2ApiUrl(path) {
   return `${VERCEL_GW2_API}?endpoint=/v2${path}`;
 }
-  
-const API = 'https://my-cors-proxy.saiyan-of-darkness.workers.dev/gw2/v2';
 const DB_NAME = 'gw2OwnedMaterialCraftingOptimizerDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'kv';
@@ -4768,7 +4767,7 @@ async function loadOwnedRecipes() {
       let tokenPermissions = null;
       if (window.DEBUG_RECIPE_UNLOCK) {
         try {
-          const tokenInfo = await fetchJson(`${API}/tokeninfo?access_token=${token}`, 1, 12000);
+          const tokenInfo = await fetchJson(gw2ApiUrl(`/tokeninfo?access_token=${token}`), 1, 12000);
           tokenPermissions = Array.isArray(tokenInfo?.permissions) ? tokenInfo.permissions : null;
           recipeUnlockDebugLog(`[Recipes] ${label} token permissions: ${(tokenPermissions || []).join(', ') || 'unknown'}`);
         } catch (tokenErr) {
@@ -4776,7 +4775,7 @@ async function loadOwnedRecipes() {
         }
       }
 
-      const payload = await fetchJson(`${API}/account/recipes?access_token=${token}`);
+      const payload = await fetchJson(gw2ApiUrl(`/account/recipes?access_token=${token}`));
       const ids = parseOwnedRecipeIdPayload(payload);
       const recipeIds = [...new Set((ids || []).map(Number).filter(n => Number.isFinite(n) && n > 0))].sort((a, b) => a - b);
 
@@ -4821,14 +4820,14 @@ async function loadMaterialIdSet() {
   if (materialIdSet.size) return materialIdSet;
 
   setStatus('Loading official material ID list...');
-  const categoryIds = await fetchJson(`${API}/materials`);
+  const categoryIds = await fetchJson(gw2ApiUrl('/materials'));
   const ids = new Set();
   const groups = chunk(categoryIds || [], BATCH_SIZE);
 
   log(`Loading material categories: ${(categoryIds || []).length.toLocaleString()} IDs across ${groups.length.toLocaleString()} batches.`);
 
   await promisePool(groups, MATERIAL_CATEGORY_CONCURRENCY, async (group) => {
-    const categories = await fetchJson(`${API}/materials?ids=${group.join(',')}`);
+    const categories = await fetchJson(gw2ApiUrl(`/materials?ids=${group.join(',')}`));
     if (Array.isArray(categories)) {
       for (const cat of categories) {
         for (const id of cat.items || []) ids.add(Number(id));
@@ -4947,7 +4946,7 @@ async function fetchItemDetails(ids) {
     if (!group.length) return;
 
     try {
-      const data = await fetchJson(`${API}/items?ids=${group.join(',')}`);
+      const data = await fetchJson(gw2ApiUrl(`/items?ids=${group.join(',')}`));
       if (Array.isArray(data)) {
         for (const item of data) {
           itemInfo.set(item.id, {
@@ -5051,13 +5050,13 @@ function buildVariantQuery(parentBatch) {
 }
 
 async function fetchRecipeByOutputItemId(outputItemId) {
-  const ids = await fetchJson(`${API}/recipes/search?output=${Number(outputItemId)}`, 2, 20000);
+  const ids = await fetchJson(gw2ApiUrl(`/recipes/search?output=${Number(outputItemId)}`), 2, 20000);
   if (!Array.isArray(ids) || !ids.length) return [];
   const groups = chunk(ids, BATCH_SIZE);
   const found = [];
 
   await promisePool(groups, RECIPE_SEARCH_CONCURRENCY, async (group) => {
-    const recipes = await fetchJson(`${API}/recipes?ids=${group.join(',')}`, 2, 25000);
+    const recipes = await fetchJson(gw2ApiUrl(`/recipes?ids=${group.join(',')}`), 2, 25000);
     if (Array.isArray(recipes)) found.push(...recipes);
   }, null, PUBLIC_BATCH_DELAY_MS);
 
@@ -5303,7 +5302,7 @@ async function loadNestedVariantRecipes() {
 
 async function loadRecipeCache() {
   setStatus('Loading recipe cache...');
-  const ids = await fetchJson(`${API}/recipes`);
+  const ids = await fetchJson(gw2ApiUrl('/recipes'));
   const compact = [];
   const groups = chunk(ids || [], BATCH_SIZE);
 

@@ -3541,21 +3541,29 @@ async function idbDelete(key) {
 }
 
 async function fetchJson(url, retries = 3, timeoutMs = 25000) {
+  const CLOUDFLARE_API = 'https://my-cors-proxy.saiyan-of-darkness.workers.dev/gw2/v2';
+  const VERCEL_API = 'https://gw-2-owned-material-crafting-optimi.vercel.app/api/gw2';
+
   for (let attempt = 1; attempt <= retries; attempt++) {
-    
-    const finalUrl = url;
-    
+    let finalUrl = url;
+
+    if (finalUrl.startsWith(CLOUDFLARE_API)) {
+      const endpoint = finalUrl.slice(CLOUDFLARE_API.length);
+      finalUrl = `${VERCEL_API}?endpoint=/v2${endpoint}`;
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
-
-
-const res = await fetch(finalUrl, { signal: controller.signal, cache: 'no-store' });
+      const res = await fetch(finalUrl, { signal: controller.signal, cache: 'no-store' });
       clearTimeout(timer);
+
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        throw new Error(`${res.status} ${res.statusText}: ${text || url}`);
+        throw new Error(`${res.status} ${res.statusText}: ${text || finalUrl}`);
       }
+
       return await res.json();
     } catch (err) {
       clearTimeout(timer);

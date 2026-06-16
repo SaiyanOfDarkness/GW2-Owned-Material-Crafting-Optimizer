@@ -1,7 +1,6 @@
-let cachedData = null;
-let cacheTime = 0;
+const cache = new Map();
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 5 * 60 * 1000;
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -24,11 +23,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing access_token" });
   }
 const now = Date.now();
+const cacheKey = accessToken.slice(-16);
+const cachedEntry = cache.get(cacheKey);
 
-if (cachedData && (now - cacheTime) < CACHE_DURATION) {
+if (cachedEntry && (now - cachedEntry.time) < CACHE_DURATION) {
   return res.status(200).json({
-    ...cachedData,
-    cache_seconds: Math.floor((now - cacheTime) / 1000),
+    ...cachedEntry.data,
+    cache_seconds: Math.floor((now - cachedEntry.time) / 1000),
     cached: true
   });
 }
@@ -77,8 +78,10 @@ const result = {
   characters
 };
 
-cachedData = result;
-cacheTime = Date.now();
+cache.set(cacheKey, {
+  time: Date.now(),
+  data: result
+});
 
 return res.status(200).json(result);
   } catch (error) {

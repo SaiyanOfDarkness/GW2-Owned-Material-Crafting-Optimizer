@@ -4241,18 +4241,20 @@ async function loadDataCache() {
 async function clearDataCache() {
   invalidateItemIdByExactNameIndex();
   researchOwnedOffTpAutoLoadAttempted = false;
-  if (!confirm('Clear optimizer data cache? API keys are kept.')) return;
-  await idbDelete(DATA_KEY);
+
+  if (!confirm('Clear scan results, owned materials, prices, and listings? Static item/recipe caches are kept.')) return;
+
   ownedMaterials.clear();
   ownedBreakdown.clear();
-  itemInfo.clear();
-  recipeCache = [];
   prices.clear();
   listings.clear();
   opportunities = [];
+
   invalidateProfitDisplayRowCache('clearDataCache');
+  await saveDataCache();
+
   render();
-  setStatus('Data cache cleared.');
+  setStatus('Scan/price cache cleared. Static item, recipe, and material caches were kept.');
 }
 
 function addAccountRow(label = '', key = '', enabled = true) {

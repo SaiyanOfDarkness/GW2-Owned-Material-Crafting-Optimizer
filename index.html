@@ -4449,118 +4449,123 @@ async function loadOwnedMaterials() {
   ownedMaterials.clear();
   ownedBreakdown.clear();
   invalidateProfitDisplayRowCache('ownedMaterialsReload');
+
   const ownedScanStats = {
     accounts: {},
     accountCount: active.length,
     materialIdCount: materialIdSet.size,
     recipeIngredientIdCount: recipeIngredientIdSet.size,
     startedAt: new Date().toISOString(),
-    addedStacks: 0, addedQuantity: 0, addedUnique: 0, skippedZeroOrInvalid: 0, slotsSeen: 0, emptySlots: 0, filteredSlots: 0, sources: {}
+    addedStacks: 0,
+    addedQuantity: 0,
+    addedUnique: 0,
+    skippedZeroOrInvalid: 0,
+    slotsSeen: 0,
+    emptySlots: 0,
+    filteredSlots: 0,
+    sources: {}
   };
+
   lastOwnedScanStats = ownedScanStats;
-  setStatus(`Loading owned materials across ${active.length} account(s)...`);
+  setStatus(`Loading owned materials across ${active.length} account(s) via Vercel cache...`);
   ownedScanDebugLog(`tracking ${materialIdSet.size.toLocaleString()} material-storage IDs and ${recipeIngredientIdSet.size.toLocaleString()} recipe ingredient IDs.`);
+
+  const ACCOUNT_DATA_API = 'https://gw-2-owned-material-crafting-optimi.vercel.app/api/account-data';
 
   await promisePool(active, ACCOUNT_CONCURRENCY, async (acc, accountIndex) => {
     const label = acc.label || `Account ${accountIndex + 1}`;
-    const token = encodeURIComponent(acc.key.trim());
-    const accountStats = { label, materialStorageReturned: 0, materialStorageNonZero: 0, bankSlots: 0, sharedInventorySlots: 0, characterCount: 0, characterSlots: 0, errors: [] };
+    const token = String(acc.key || '').trim();
+
+    const accountStats = {
+      label,
+      materialStorageReturned: 0,
+      materialStorageNonZero: 0,
+      bankSlots: 0,
+      sharedInventorySlots: 0,
+      characterCount: 0,
+      characterSlots: 0,
+      cached: false,
+      cacheSeconds: 0,
+      errors: []
+    };
+
     ownedScanStats.accounts[label] = accountStats;
 
-    log(`Loading material storage: ${label}`);
-
     try {
-      const mats = await fetchJson(`${API}/account/materials?access_token=${token}`);
-      accountStats.materialStorageReturned = Array.isArray(mats) ? mats.length : 0;
-      for (const m of mats || []) {
+      log(`Loading account data via Vercel cache: ${label}`);
+
+      const url = new URL(ACCOUNT_DATA_API);
+      url.searchParams.set('access_token', token);
+
+      const data = await fetchJson(url.toString());
+
+      accountStats.cached = !!data.cached;
+      accountStats.cacheSeconds = Number(data.cache_seconds || 0);
+
+      const mats = Array.isArray(data.materials) ? data.materials : [];
+      accountStats.materialStorageReturned = mats.length;
+
+      for (const m of mats) {
         if (Number(m?.count || 0) > 0) accountStats.materialStorageNonZero++;
         addOwnedMaterial(m.id, m.count, label, 'materialStorage', ownedScanStats);
       }
-      ownedScanDebugLog(`${label}: material storage returned ${accountStats.materialStorageReturned.toLocaleString()} entries, ${accountStats.materialStorageNonZero.toLocaleString()} non-zero.`);
-    } catch (e) {
-      console.warn('Material storage failed', label, e);
-      accountStats.errors.push(`materialStorage: ${e.message}`);
-      log(`Material storage failed for ${label}: ${e.message}`);
-    }
 
-    log(`Loading bank materials: ${label}`);
-
-    try {
-      const bank = await fetchJson(`${API}/account/bank?access_token=${token}`);
-      accountStats.bankSlots = Array.isArray(bank) ? bank.length : 0;
+      const bank = Array.isArray(data.bank) ? data.bank : [];
+      accountStats.bankSlots = bank.length;
       scanItemListForMaterials(bank, label, 'bank', ownedScanStats);
-      ownedScanDebugLog(`${label}: bank slots scanned ${accountStats.bankSlots.toLocaleString()}.`);
+
+      const chars = Array.isArray(data.characters) ? data.characters : [];
+      accountStats.characterCount = chars.length;
+
+      for (const [charIndex, char] of chars.entries()) {
+        const charName = char?.name || `Character ${charIndex + 1}`;
+        let charSlots = 0;
+
+        for (const bag of char?.bags || []) {
+          if (bag && Array.isArray(bag.inventory)) {
+            charSlots += bag.inventory.length;
+          }
+        }
+
+        accountStats.characterSlots += charSlots;
+        scanInventoryForMaterials(char, label, ownedScanStats);
+      }
+
+      log(
+        `[OwnedScan] ${label}: account-data loaded ` +
+        `(cached=${accountStats.cached}, cache_seconds=${accountStats.cacheSeconds}) | ` +
+        `materials=${accountStats.materialStorageReturned.toLocaleString()}, ` +
+        `bankSlots=${accountStats.bankSlots.toLocaleString()}, ` +
+        `characters=${accountStats.characterCount.toLocaleString()}, ` +
+        `characterSlots=${accountStats.characterSlots.toLocaleString()}`
+      );
     } catch (e) {
-      console.warn('Bank failed', label, e);
-      accountStats.errors.push(`bank: ${e.message}`);
-      log(`Bank failed for ${label}: ${e.message}`);
+      console.warn('Account data failed', label, e);
+      accountStats.errors.push(`accountData: ${e.message}`);
+      log(`Account data failed for ${label}: ${e.message}`);
     }
-
-    log(`Loading shared inventory: ${label}`);
-
-    try {
-      const sharedInventory = await fetchJson(`${API}/account/inventory?access_token=${token}`);
-      accountStats.sharedInventorySlots = Array.isArray(sharedInventory) ? sharedInventory.length : 0;
-      scanItemListForMaterials(sharedInventory, label, 'sharedInventory', ownedScanStats);
-      ownedScanDebugLog(`${label}: shared inventory slots scanned ${accountStats.sharedInventorySlots.toLocaleString()}.`);
-    } catch (e) {
-      console.warn('Shared inventory failed', label, e);
-      accountStats.errors.push(`sharedInventory: ${e.message}`);
-      log(`Shared inventory failed for ${label}: ${e.message}`);
-    }
-
-let chars = [];
-try {
-  chars = await fetchJson(`${API}/characters?ids=all&access_token=${token}`);
-  accountStats.characterCount = Array.isArray(chars) ? chars.length : 0;
-} catch (e) {
-  console.warn('Bulk character inventory failed', label, e);
-  accountStats.errors.push(`charactersBulk: ${e.message}`);
-  log(`Bulk character inventory failed for ${label}: ${e.message}`);
-}
-
-if (!chars.length) return;
-
-log(`Scanning ${chars.length} character inventories for ${label} via bulk characters endpoint...`);
-
-for (const [charIndex, char] of chars.entries()) {
-  const charName = char?.name || `Character ${charIndex + 1}`;
-  log(`Scanning character ${charIndex + 1}/${chars.length}: ${label} / ${charName}`);
-
-  let charSlots = 0;
-
-  for (const bag of char?.bags || []) {
-    if (bag && Array.isArray(bag.inventory)) {
-      charSlots += bag.inventory.length;
-    }
-  }
-
-  accountStats.characterSlots += charSlots;
-
-  scanInventoryForMaterials(char, label, ownedScanStats);
-}
-
-ownedScanDebugLog(
-  `${label}: bulk character scan loaded ${accountStats.characterCount.toLocaleString()} character(s), ${accountStats.characterSlots.toLocaleString()} inventory slot(s).`
-);
-
   });
-  
+
   ownedScanStats.finishedAt = new Date().toISOString();
   ownedScanStats.finalUniqueIds = ownedMaterials.size;
   ownedScanStats.breakdownIds = ownedBreakdown.size;
+
   await fetchItemDetails([...ownedMaterials.keys()]);
   await saveDataCache();
-  const sourceSummary = Object.entries(ownedScanStats.sources || {}).map(([k, v]) => `${k}: ${Number(v.unique || 0).toLocaleString()} unique / ${Number(v.qty || 0).toLocaleString()} qty`).join('; ');
+
+  const sourceSummary = Object.entries(ownedScanStats.sources || {})
+    .map(([k, v]) => `${k}: ${Number(v.unique || 0).toLocaleString()} unique / ${Number(v.qty || 0).toLocaleString()} qty`)
+    .join('; ');
+
   log(`[OwnedScan] Complete: ${ownedMaterials.size.toLocaleString()} unique owned item ID(s), ${Number(ownedScanStats.addedQuantity || 0).toLocaleString()} total quantity. ${sourceSummary || 'No sources added any non-zero tracked items.'}`);
+
   if (!ownedMaterials.size) {
     log(`[OwnedScan] WARNING: zero owned items loaded. Endpoint/scan stats: ${JSON.stringify(ownedScanStats)}`);
   }
+
   setStatus(`Loaded owned materials/recipe ingredients: ${ownedMaterials.size} unique item IDs across ${active.length} account(s).`);
 }
-
-
-function recipeUnlockAccountLabel(accountId) {
+  function recipeUnlockAccountLabel(accountId) {
   const acc = accounts.find(a => a.id === accountId);
   return (acc && acc.label) || ownedRecipesByAccount?.[accountId]?.label || accountId || 'Account';
 }

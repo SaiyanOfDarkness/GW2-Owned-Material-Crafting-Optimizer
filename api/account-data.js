@@ -7,7 +7,7 @@ const allowedOrigins = new Set([
   "https://gw-2-owned-material-crafting-optimi.vercel.app"
 ]);
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   const origin = req.headers.origin || "";
   const referer = req.headers.referer || "";
 

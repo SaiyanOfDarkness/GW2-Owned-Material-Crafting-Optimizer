@@ -104,7 +104,8 @@ export default async function handler(req, res) {
   } catch (error) {
     return res.status(500).json({
       error: "Account data fetch failed",
-      detail: error.message
+      detail: error.message,
+      has_token: !!accessToken,
+      token_length: String(accessToken || "").length
     });
   }
-}

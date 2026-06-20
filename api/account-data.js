@@ -109,3 +109,4 @@ module.exports = async function handler(req, res) {
       token_length: String(accessToken || "").length
     });
   }
+};

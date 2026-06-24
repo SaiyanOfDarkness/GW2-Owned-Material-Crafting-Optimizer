@@ -5360,8 +5360,18 @@ async function loadRecipeCache() {
 
 async function refreshMarketPrices() {
   const ids = new Set();
-  for (const id of ownedMaterials.keys()) ids.add(id);
-  for (const r of recipeCache) ids.add(r.outputItemId);
+
+  for (const id of ownedMaterials.keys()) ids.add(Number(id));
+
+  for (const r of recipeCache) {
+    ids.add(Number(r.outputItemId));
+
+    for (const ing of r.ingredients || []) {
+      const ingId = Number(ing.itemId || ing.item_id || ing.id || 0);
+      if (ingId) ids.add(ingId);
+    }
+  }
+
   if (!ids.size) {
     setStatus('Load owned materials and recipe cache first.');
     return;
